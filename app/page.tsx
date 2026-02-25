@@ -6,6 +6,9 @@ export default function Home() {
       <p>
         Go to <a href="/list">/list</a> for the Supabase list page.
       </p>
+      <p>
+  Go to <a href="/captions">/captions</a> to rate captions.
+</p>
     </main>
   );
 }
