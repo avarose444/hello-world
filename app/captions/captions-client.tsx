@@ -1,44 +1,40 @@
-"use client";
+async function runPipeline(file: File) {
+  const contentType = file.type || "image/jpeg";
 
-import { useState } from "react";
-import Link from "next/link";
-import CaptionCards from "./CaptionCards";
+  // Step 1
+  const s1 = await fetch("/api/pipeline/generate-presigned-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contentType }),
+  });
+  if (!s1.ok) throw new Error(`Step 1 failed (${s1.status})`);
+  const { presignedUrl, cdnUrl } = await s1.json();
 
-type Caption = {
-  id: string;
-  content: string;
-  like_count: number;
-};
+  // Step 2
+  const put = await fetch(presignedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: file,
+  });
+  if (!put.ok) throw new Error(`Upload failed (${put.status})`);
 
-export default function CaptionsClient() {
-  const [captions, setCaptions] = useState<Caption[]>([]);
+  // Step 3
+  const s3 = await fetch("/api/pipeline/upload-image-from-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageUrl: cdnUrl, isCommonUse: false }),
+  });
+  if (!s3.ok) throw new Error(`Step 3 failed (${s3.status})`);
+  const { imageId } = await s3.json();
 
-  return (
-    <div className="card">
-      <div className="header">
-        <div className="brand">
-          <span className="badge" />
-          <span>AlmostCrackd</span>
-          <span className="kbd">captions</span>
-        </div>
+  // Step 4
+  const s4 = await fetch("/api/pipeline/generate-captions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageId }),
+  });
+  if (!s4.ok) throw new Error(`Step 4 failed (${s4.status})`);
+  const captions = await s4.json();
 
-        <div className="row">
-          <Link className="btn" href="/">Home</Link>
-          <Link className="btn" href="/logout">Logout</Link>
-        </div>
-      </div>
-
-      <div className="main">
-        <h1 className="h1" style={{ fontSize: 28 }}>Generate captions</h1>
-        <p className="p">Upload an image to run the pipeline. Then vote on the results.</p>
-
-
-        {captions.length > 0 && (
-          <div style={{ marginTop: 18 }}>
-            <CaptionCards captions={captions} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  setCaptions(captions);
 }
