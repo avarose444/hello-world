@@ -20,13 +20,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("caption_votes").insert({
-  profile_id: user.id,
-  caption_id: captionId,
-  vote_value: direction === "up" ? 1 : -1,
-  created_datetime_utc: new Date().toISOString(),
-  modified_datetime_utc: new Date().toISOString(),
-});
+const now = new Date().toISOString();
+
+const { error } = await supabase
+  .from("caption_votes")
+  .upsert(
+    {
+      caption_id: captionId,
+      user_id: user.id,
+      profile_id: user.id,
+      vote_value: direction === "up" ? 1 : -1,
+      created_datetime_utc: now,
+      modified_datetime_utc: now,
+    },
+    { onConflict: "user_id,caption_id" }
+  );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
