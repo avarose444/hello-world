@@ -3,17 +3,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const body = await req.json();
 
-  const upstream = await fetch("https://api.almostcrackd.ai/pipeline/upload-image-from-url", {
+  const res = await fetch("https://api.almostcrackd.ai/pipeline/upload-image-from-url", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${session.access_token}`,
@@ -22,9 +18,6 @@ export async function POST(req: Request) {
     body: JSON.stringify(body),
   });
 
-  const text = await upstream.text();
-  return new NextResponse(text, {
-    status: upstream.status,
-    headers: { "Content-Type": "application/json" },
-  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
 }

@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 
-type CaptionRow = Record<string, any>;
+type Caption = {
+  id: string;
+  content: string;
+  like_count: number;
+};
 
-export default function CaptionCards({ captions }: { captions: CaptionRow[] }) {
+export default function CaptionCards({
+  captions,
+}: {
+  captions: Caption[];
+}) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string>("");
+  const [message, setMessage] = useState("");
 
-  // pick the most likely caption text field
-  const getText = (c: CaptionRow) =>
-    c.caption ?? c.text ?? c.content ?? c.title ?? JSON.stringify(c);
-
-  async function submitVote(captionId: string, direction: "up" | "down") {
+  async function vote(captionId: string, direction: "up" | "down") {
     setMessage("");
     setLoadingId(captionId);
 
@@ -22,11 +26,10 @@ export default function CaptionCards({ captions }: { captions: CaptionRow[] }) {
       body: JSON.stringify({ captionId, direction }),
     });
 
-    const json = await res.json().catch(() => ({}));
     setLoadingId(null);
 
     if (!res.ok) {
-      setMessage(json?.error ?? "Vote failed");
+      setMessage("Vote failed");
       return;
     }
 
@@ -34,47 +37,39 @@ export default function CaptionCards({ captions }: { captions: CaptionRow[] }) {
   }
 
   return (
-    <section style={{ marginTop: 16 }}>
-      {message ? <p>{message}</p> : null}
+    <section style={{ marginTop: 24 }}>
+      {message && <div className="success">{message}</div>}
 
-      <div style={{ display: "grid", gap: 12 }}>
-        {captions.map((c) => {
-          const id = String(c.id);
-          return (
-            <div
-              key={id}
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                padding: 12,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14 }}>{getText(c)}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>caption id: {id}</div>
-              </div>
+      <div className="grid" style={{ gap: 16 }}>
+        {captions.map((c) => (
+          <div key={c.id} className="card cardHover">
+            <div style={{ fontSize: 18, fontWeight: 600 }}>
+              {c.content}
+            </div>
 
-              <div style={{ display: "flex", gap: 8 }}>
+            <div className="captionFooter">
+              <div>👍 {c.like_count ?? 0}</div>
+
+              <div style={{ display: "flex", gap: 10 }}>
                 <button
-                  onClick={() => submitVote(id, "up")}
-                  disabled={loadingId === id}
+                  className="voteBtn"
+                  disabled={loadingId === c.id}
+                  onClick={() => vote(c.id, "up")}
                 >
                   👍
                 </button>
+
                 <button
-                  onClick={() => submitVote(id, "down")}
-                  disabled={loadingId === id}
+                  className="voteBtn"
+                  disabled={loadingId === c.id}
+                  onClick={() => vote(c.id, "down")}
                 >
                   👎
                 </button>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </section>
   );

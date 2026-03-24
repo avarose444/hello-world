@@ -4,9 +4,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function POST(req: Request) {
   const supabase = await createSupabaseServerClient();
 
-  // Must be logged in
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -20,21 +20,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-const now = new Date().toISOString();
+  // Get the profile row for this auth user
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
 
-const { error } = await supabase
-  .from("caption_votes")
-  .upsert(
-    {
-      caption_id: captionId,
-      user_id: user.id,
-      profile_id: user.id,
-      vote_value: direction === "up" ? 1 : -1,
-      created_datetime_utc: now,
-      modified_datetime_utc: now,
-    },
-    { onConflict: "user_id,caption_id" }
-  );
+  if (profileError || !profile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 400 });
+  }
+
+  const profileId = profile.id;
+
+  const { error } = await supabase
+    .from("caption_votes")
+    .upsert(
+      {
+        caption_id: captionId,
+        user_id: user.id,
+        profile_id: profileId,
+        vote_value: direction === "up" ? 1 : -1,
+        created_by_user_id: profileId,
+        modified_by_user_id: profileId,
+      },
+      { onConflict: "user_id,caption_id" }
+    );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
