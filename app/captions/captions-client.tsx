@@ -11,125 +11,127 @@ type Caption = {
 
 export default function CaptionsClient() {
   const [captions, setCaptions] = useState<Caption[]>([]);
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const saved = localStorage.getItem("lastUploadedImageUrl");
     if (saved) setImageUrl(saved);
-  }, []);
 
-  async function refreshCaptions() {
-    setStatus("");
-    try {
-      const res = await fetch("/api/pipeline/generate-captions", {
-        method: "GET",
-        cache: "no-store",
-      });
+    async function loadCaptions() {
+      try {
+        const res = await fetch("/api/captions", { cache: "no-store" });
+        const data = await res.json();
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Request failed (${res.status})`);
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to load captions");
+        }
+
+        setCaptions(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        setStatus(e?.message || "Failed to load captions");
+      } finally {
+        setLoading(false);
       }
-
-      const data = await res.json();
-      const next = Array.isArray(data) ? data : data?.captions;
-      setCaptions(next ?? []);
-      setStatus("Loaded ✅");
-    } catch (e: any) {
-      setStatus(e?.message ?? "Something went wrong");
     }
-  }
+
+    loadCaptions();
+  }, []);
 
   async function vote(captionId: string, direction: "up" | "down") {
     setStatus("");
+
     try {
       const res = await fetch("/api/vote", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ captionId, direction }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || `Vote failed (${res.status})`);
+        throw new Error(data?.error || "Vote failed");
       }
+
+      setCaptions((prev) =>
+        prev.map((c) =>
+          c.id === captionId
+            ? {
+                ...c,
+                like_count: (c.like_count ?? 0) + (direction === "up" ? 1 : -1),
+              }
+            : c
+        )
+      );
 
       setStatus("Vote saved ✅");
     } catch (e: any) {
-      setStatus(e?.message ?? "Vote failed");
+      setStatus(e?.message || "Vote failed");
     }
   }
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <Link className="btn" href="/protected">
+      <div className="btnRow" style={{ marginBottom: 18 }}>
+        <Link href="/protected" className="btn">
           ← Back to dashboard
         </Link>
-        <Link className="btn" href="/generate">
+        <Link href="/generate" className="btn">
           Generate more
         </Link>
       </div>
 
-      <h1>Rate Captions</h1>
-      <p>Vote on the generated captions below.</p>
+      <h1 className="heroTitle">Rate Captions</h1>
+      <p className="sub">
+        Only logged-in users can vote.
+      </p>
 
       {imageUrl && (
-        <div style={{ margin: "18px 0" }}>
-          <h3>Uploaded Image</h3>
+        <div className="panel" style={{ marginBottom: 20 }}>
+          <h3 className="cardTitle">Uploaded image</h3>
           <img
             src={imageUrl}
-            alt="Uploaded"
-            style={{
-              width: "100%",
-              maxWidth: 500,
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.14)",
-            }}
+            alt="Uploaded preview"
+            className="previewImg"
           />
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, margin: "14px 0" }}>
-        <button className="btn" onClick={refreshCaptions}>
-          Refresh captions
-        </button>
-      </div>
+      {status && (
+        <p className={status.includes("✅") ? "toastOk" : "toastErr"}>
+          {status}
+        </p>
+      )}
 
-      {status ? <p>{status}</p> : null}
+      {loading ? (
+        <p className="sub">Loading captions...</p>
+      ) : (
+        <div className="captionGrid" style={{ marginTop: 18 }}>
+          {captions.map((c) => (
+            <div key={c.id} className="captionCard">
+              <div>
+                <div className="captionText">{c.content}</div>
+                <div className="mono" style={{ marginTop: 6 }}>
+                  👍 {c.like_count ?? 0}
+                </div>
+              </div>
 
-      <div style={{ marginTop: 12 }}>
-        {captions.map((c) => (
-          <div
-            key={c.id}
-            style={{
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: 14,
-              padding: 14,
-              marginBottom: 12,
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 650 }}>{c.content}</div>
-              <div style={{ opacity: 0.7, fontSize: 12 }}>caption id: {c.id}</div>
+              <div className="voteBtns">
+                <button className="iconBtn" onClick={() => vote(c.id, "up")}>
+                  👍
+                </button>
+                <button className="iconBtn" onClick={() => vote(c.id, "down")}>
+                  👎
+                </button>
+              </div>
             </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn" onClick={() => vote(c.id, "up")}>
-                👍
-              </button>
-              <button className="btn" onClick={() => vote(c.id, "down")}>
-                👎
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
