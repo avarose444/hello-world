@@ -24,6 +24,7 @@ export default function GenerateClient() {
 
       if (!s1.ok) throw new Error("Step 1 failed");
       const { presignedUrl, cdnUrl } = await s1.json();
+      localStorage.setItem("lastUploadedImageUrl", cdnUrl);
 
       // STEP 2: Upload image to S3
       setStatus("Uploading image...");

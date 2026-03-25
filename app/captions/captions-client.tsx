@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type Caption = {
@@ -12,6 +12,12 @@ type Caption = {
 export default function CaptionsClient() {
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [status, setStatus] = useState<string>("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("lastUploadedImageUrl");
+    if (saved) setImageUrl(saved);
+  }, []);
 
   async function refreshCaptions() {
     setStatus("");
@@ -27,8 +33,6 @@ export default function CaptionsClient() {
       }
 
       const data = await res.json();
-
-      // Accept either { captions: [...] } OR just [...]
       const next = Array.isArray(data) ? data : data?.captions;
       setCaptions(next ?? []);
       setStatus("Loaded ✅");
@@ -37,18 +41,61 @@ export default function CaptionsClient() {
     }
   }
 
+  async function vote(captionId: string, direction: "up" | "down") {
+    setStatus("");
+    try {
+      const res = await fetch("/api/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ captionId, direction }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Vote failed (${res.status})`);
+      }
+
+      setStatus("Vote saved ✅");
+    } catch (e: any) {
+      setStatus(e?.message ?? "Vote failed");
+    }
+  }
+
   return (
     <div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <Link className="btn" href="/protected">
+          ← Back to dashboard
+        </Link>
+        <Link className="btn" href="/generate">
+          Generate more
+        </Link>
+      </div>
+
       <h1>Rate Captions</h1>
-      <p>Only logged-in users can vote.</p>
+      <p>Vote on the generated captions below.</p>
+
+      {imageUrl && (
+        <div style={{ margin: "18px 0" }}>
+          <h3>Uploaded Image</h3>
+          <img
+            src={imageUrl}
+            alt="Uploaded"
+            style={{
+              width: "100%",
+              maxWidth: 500,
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.14)",
+            }}
+          />
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 12, margin: "14px 0" }}>
         <button className="btn" onClick={refreshCaptions}>
           Refresh captions
         </button>
-        <Link className="btn" href="/generate">
-          Go to generate
-        </Link>
       </div>
 
       {status ? <p>{status}</p> : null}
@@ -85,24 +132,4 @@ export default function CaptionsClient() {
       </div>
     </div>
   );
-
-  async function vote(captionId: string, direction: "up" | "down") {
-    setStatus("");
-    try {
-      const res = await fetch("/api/vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captionId, direction }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Vote failed (${res.status})`);
-      }
-
-      setStatus("Vote saved ✅");
-    } catch (e: any) {
-      setStatus(e?.message ?? "Vote failed");
-    }
-  }
 }
