@@ -14,21 +14,24 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const captionId = body?.captionId;
-  const direction = body?.direction; // "up" | "down"
+  const direction = body?.direction;
 
   if (!captionId || (direction !== "up" && direction !== "down")) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // Get the profile row for this auth user
+  // In many Supabase setups, profiles.id matches auth.users.id
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("id", user.id)
     .single();
 
   if (profileError || !profile) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 400 });
+    return NextResponse.json(
+      { error: `Profile lookup failed: ${profileError?.message ?? "Profile not found"}` },
+      { status: 400 }
+    );
   }
 
   const profileId = profile.id;
